@@ -18,11 +18,12 @@ import struct
 
 parser = argparse.ArgumentParser(description='Quantize a 24bpp Bitmap (max 256x256) into SNES format.', epilog="Image dimensions must be divisible by 8.  File must be located in current directory.")
 parser.add_argument('FileName', help='File Name (NO PATH OR EXTENSION)')
-parser.add_argument("-t", "--trials", nargs=1, default=2, type=int, help="Number of trials per quantization")
-parser.add_argument("-l", "--loops", nargs=1, default=60, type=int, help="Maximum number of loops per trial")
-parser.add_argument("-p", "--palettes", nargs=1, default=8, type=int, help="Target Number of Palettes (Must be <=8 for SNES output)")
-parser.add_argument("-c", "--chunking", nargs=1, default=24, type=int, help="Comparison Chunking - # to compare before merging best (8-128)")
-parser.add_argument("-x", "--xtraQ", nargs=1, default=3, type=int, help="Quantize all palettes after merging is complete for __ more trials")
+parser.add_argument("-t", "--trials", nargs=1, default=[2], type=int, help="Number of trials per quantization")
+parser.add_argument("-l", "--loops", nargs=1, default=[60], type=int, help="Maximum number of loops per trial")
+parser.add_argument("-p", "--palettes", nargs=1, default=[8], type=int, help="Target Number of Palettes (Must be <=8 for SNES output)")
+parser.add_argument("-c", "--chunking", nargs=1, default=[24], type=int, help="Comparison Chunking - # to compare before merging best (8-128)")
+parser.add_argument("-x", "--xtraQ", nargs=1, default=[3], type=int, help="Quantize all palettes after merging is complete for __ more trials")
+parser.add_argument("-o", "--outputRows", nargs=1, default=[32], type=int, help="Rows of tile set to output")
 args = parser.parse_args()
 
 print(args.FileName)
@@ -34,15 +35,17 @@ outputBMPNameC = "{}CrushedPals.bmp".format(args.FileName)
 
 outputIncNameA = "{}.inc".format(args.FileName)
 outputIncNameALabel = "{}:".format(args.FileName)
-outputIncNameAPalLabel = "{}Palettes:".format(args.FileName)
 outputIncNameB = "{}Map.inc".format(args.FileName)
 outputIncNameBLabel = "{}Map:".format(args.FileName)
+outputIncNameC = "{}Palettes.inc".format(args.FileName)
+outputIncNameCLabel = "{}Palettes:".format(args.FileName)
 
-targetNumPalettes = args.palettes
-trials = args.trials
-qLoops = args.loops
-xTrials = args.xtraQ
-chunkSize = args.chunking
+targetNumPalettes = args.palettes[0]
+trials = args.trials[0]
+qLoops = args.loops[0]
+xTrials = args.xtraQ[0]
+chunkSize = args.chunking[0]
+RowsToOutput = args.outputRows[0]
 if chunkSize < 8 or chunkSize > 128:
     chunkSize = 24
 
@@ -200,8 +203,8 @@ for i in range(bitmapHeight):
 for i in range(numTilesTall):
     for j in range(numTilesWide):
         tileClrsNumUniqueClrs[i][j] = 0  #initialize all to 0 and add 1 when a match is not found
-        tileBestPalAvg[i][j] = 99999      #initialize all "best" palettes' averages to 99999
-        #tileBestPalRMS[i][j] = 99999    
+        tileBestPalAvg[i][j] = 999999      #initialize all "best" palettes' averages to 999999
+        #tileBestPalRMS[i][j] = 999999    
         
 for i in range(numTilesTall):
     for j in range(numTilesWide):
@@ -224,14 +227,14 @@ for i in range(numTilesTall):
 
 for i in range(numTilesTall):
     for j in range(numTilesWide):
-        bestAvgClrDistance = 99999
-        #bestRMSClrDistance = 99999
+        bestAvgClrDistance = 999999
+        #bestRMSClrDistance = 999999
         print("building palette from {} unique clrs...  {},{}".format(tileClrsNumUniqueClrs[i][j], i, j))
         for k in range(trials):
             reshuffleAttempts = 0
             gettingWorseCounter = 0
-            avgClrDistance = 99999
-            prevAvgClrDistance = 99999
+            avgClrDistance = 999999
+            prevAvgClrDistance = 999999
                
             if tileClrsNumUniqueClrs[i][j] > 15:
                 n = 0
@@ -282,10 +285,10 @@ for i in range(numTilesTall):
 
                     #find each colour's closest palette colour and store distance
                     for n in range(tileClrsNumUniqueClrs[i][j]):
-                        closestPixelDistance = 9999
+                        closestPixelDistance = 999999
                         for m in range(15):
                             pixelDistance = ((tileUniqueClrsR[i][j][n] - tileWorkingPalR[m]) ** 2) + ((tileUniqueClrsG[i][j][n] - tileWorkingPalG[m]) ** 2) + ((tileUniqueClrsB[i][j][n] - tileWorkingPalB[m]) ** 2)
-                            pixelDistance = math.sqrt(pixelDistance)
+                            #pixelDistance = math.sqrt(pixelDistance)
                             if pixelDistance < closestPixelDistance:
                                 closestPixelDistance = pixelDistance
                                 closestPixelColour = m
@@ -369,10 +372,11 @@ for i in range(numTilesTall):
 
                             #merge two closest centroids...
 
-                            mergeSumClosest = 9999
+                            mergeSumClosest = 999999
                             for n in range(15):
                                 for m in range(n):
-                                    mergeSum = math.sqrt(((tileWorkingPalR[n] - tileWorkingPalR[m]) ** 2) + ((tileWorkingPalG[n] - tileWorkingPalG[m]) ** 2) + ((tileWorkingPalB[n] - tileWorkingPalB[m]) ** 2))
+                                    #removed a math.sqrt here
+                                    mergeSum = ((tileWorkingPalR[n] - tileWorkingPalR[m]) ** 2) + ((tileWorkingPalG[n] - tileWorkingPalG[m]) ** 2) + ((tileWorkingPalB[n] - tileWorkingPalB[m]) ** 2)
                                     if mergeSum < mergeSumClosest:
                                         mergeSumClosest = mergeSum
                                         mergeSumIndexA = m
@@ -407,36 +411,36 @@ for i in range(numTilesTall):
 #=======================================================================================================================
 #Initial Quantization Done.  Dump a quick bitmap to confirm it worked so far
 
-print("Exporting Max-Palettes Bitmap...")
+#print("Exporting Max-Palettes Bitmap...")
 
-with open(outputBMPNameA, "wb") as f:
+#with open(outputBMPNameA, "wb") as f:
 
     #Copy original header back verbatim
-    for i in range(pixelStartAddress):
-        f.write(bytelist[i])
+#    for i in range(pixelStartAddress):
+#        f.write(bytelist[i])
 
     #Then write new pixel data
-    for i in range(bitmapHeight):
-        for j in range(bitmapWidth):
-            tileCoordY = i%8
-            tileCoordX = j%8
-            mapCoordY = i//8
-            mapCoordX = j//8
+#    for i in range(bitmapHeight):
+#        for j in range(bitmapWidth):
+#            tileCoordY = i%8
+#            tileCoordX = j%8
+#            mapCoordY = i//8
+#            mapCoordX = j//8
 
-            bestPixelDistance = 9999
+#            bestPixelDistance = 999999
             #for each pixel, lookup which best palette to use (mapCoordY, mapCoordX), find the closest colour match in it, then write that colour value
-            for n in range(15):
-                pixelDistance = ((tileBestPalR[mapCoordY][mapCoordX][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
-                pixelDistance = pixelDistance + ((tileBestPalG[mapCoordY][mapCoordX][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
-                pixelDistance = pixelDistance + ((tileBestPalB[mapCoordY][mapCoordX][n] - tileClrsB[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+#            for n in range(15):
+#                pixelDistance = ((tileBestPalR[mapCoordY][mapCoordX][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+#                pixelDistance = pixelDistance + ((tileBestPalG[mapCoordY][mapCoordX][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+#                pixelDistance = pixelDistance + ((tileBestPalB[mapCoordY][mapCoordX][n] - tileClrsB[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
 
-                if pixelDistance < bestPixelDistance:
-                    bestPixelDistance = pixelDistance
-                    bestClrMatch = n
+#                if pixelDistance < bestPixelDistance:
+#                    bestPixelDistance = pixelDistance
+#                    bestClrMatch = n
                     
-            f.write(struct.pack("B", int(tileBestPalB[mapCoordY][mapCoordX][bestClrMatch] * 8)))
-            f.write(struct.pack("B", int(tileBestPalG[mapCoordY][mapCoordX][bestClrMatch] * 8)))
-            f.write(struct.pack("B", int(tileBestPalR[mapCoordY][mapCoordX][bestClrMatch] * 8)))
+#            f.write(struct.pack("B", int(tileBestPalB[mapCoordY][mapCoordX][bestClrMatch] * 8)))
+#            f.write(struct.pack("B", int(tileBestPalG[mapCoordY][mapCoordX][bestClrMatch] * 8)))
+#            f.write(struct.pack("B", int(tileBestPalR[mapCoordY][mapCoordX][bestClrMatch] * 8)))
 
 #Transfer "Best Palettes" arrays into merging arrays indexed by raw palette number
 
@@ -487,7 +491,7 @@ print("Merging away palettes with empty slots...  {} empty, {} full".format(empt
 for x in range(emptyPals):
     i = emptyPalList[x]
     closestFullPal = 0
-    closestFullPalDist = 99999
+    closestFullPalDist = 999999
     
     #numTiles of the unfull palette will always be 1 here since we haven't begun merging yet.  No loop.
     tileHi = tileEMergePalTileList[i][0][0]
@@ -502,7 +506,8 @@ for x in range(emptyPals):
             shortestDistance = 0
 
             for k in range(15):
-                sumDistance[k] = math.sqrt(((tileEMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileEMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileEMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2))
+                #removed a math.sqrt here
+                sumDistance[k] = ((tileEMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileEMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileEMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2)
 
                 if k != 0:
                     if sumDistance[k] < sumDistance[shortestDistance]:
@@ -521,13 +526,13 @@ for x in range(emptyPals):
     tileEMergePalNumTiles[closestFullPal] = tileEMergePalNumTiles[closestFullPal] + 1
 
     #FULLY QUANTIZE the merged palette EVERY TIME.  Get random start point from palette's tiles
-    bestAvgClrDistance = 99999
-    #bestRMSClrDistance = 99999
+    bestAvgClrDistance = 999999
+    #bestRMSClrDistance = 999999
     for k in range(trials):
         reshuffleAttempts = 0
         gettingWorseCounter = 0
-        avgClrDistance = 99999
-        prevAvgClrDistance = 99999
+        avgClrDistance = 999999
+        prevAvgClrDistance = 999999
            
         n = 0
         while n < 15:
@@ -574,10 +579,10 @@ for x in range(emptyPals):
                     tileLo = tileEMergePalTileList[closestFullPal][p][1]
                     
                     for n in range(tileClrsNumUniqueClrs[tileHi][tileLo]):
-                        closestPixelDistance = 99999
+                        closestPixelDistance = 999999
                         for m in range(15):
                             pixelDistance = ((tileUniqueClrsR[tileHi][tileLo][n] - tileEMergePalR[closestFullPal][m]) ** 2) + ((tileUniqueClrsG[tileHi][tileLo][n] - tileEMergePalG[closestFullPal][m]) ** 2) + ((tileUniqueClrsB[tileHi][tileLo][n] - tileEMergePalB[closestFullPal][m]) ** 2)
-                            pixelDistance = math.sqrt(pixelDistance)
+                            #pixelDistance = math.sqrt(pixelDistance)
                             if pixelDistance < closestPixelDistance:
                                 closestPixelDistance = pixelDistance
                                 closestPixelColour = m
@@ -671,10 +676,11 @@ for x in range(emptyPals):
 
                         #merge two closest centroids...
 
-                        mergeSumClosest = 9999
+                        mergeSumClosest = 999999
                         for n in range(15):
                             for m in range(n):
-                                mergeSum = math.sqrt(((tileEMergePalR[closestFullPal][n] - tileEMergePalR[closestFullPal][m]) ** 2) + ((tileEMergePalG[closestFullPal][n] - tileEMergePalG[closestFullPal][m]) ** 2) + ((tileEMergePalB[closestFullPal][n] - tileEMergePalB[closestFullPal][m]) ** 2))
+                                #removed a math.sqrt here
+                                mergeSum = ((tileEMergePalR[closestFullPal][n] - tileEMergePalR[closestFullPal][m]) ** 2) + ((tileEMergePalG[closestFullPal][n] - tileEMergePalG[closestFullPal][m]) ** 2) + ((tileEMergePalB[closestFullPal][n] - tileEMergePalB[closestFullPal][m]) ** 2)
                                 if mergeSum < mergeSumClosest:
                                     mergeSumClosest = mergeSum
                                     mergeSumIndexA = m
@@ -778,7 +784,7 @@ for i in range(fullPals):
 #                print("WTF Tile not found")
 #                quit()
 
-#            bestPixelDistance = 9999
+#            bestPixelDistance = 999999
 #            for n in range(15):
 #                pixelDistance = ((tileMergePalR[correctDrawPal][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
 #                pixelDistance = pixelDistance + ((tileMergePalG[correctDrawPal][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
@@ -803,7 +809,7 @@ if numCrunches < 0:
 
 crunch = 0
 chunkCounter = chunkSize
-bestMergeLoss = 99999
+bestMergeLoss = 999999
 while crunch < numCrunches:
     jOffset = 0
     w = 0
@@ -828,7 +834,8 @@ while crunch < numCrunches:
                     shortestDistance = 0
 
                     for k in range(15):
-                        sumDistance[k] = math.sqrt(((tileMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2))
+                        #removed a math.sqrt here
+                        sumDistance[k] = ((tileMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2)
 
                         if k != 0:
                             if sumDistance[k] < sumDistance[shortestDistance]:
@@ -847,7 +854,8 @@ while crunch < numCrunches:
                     shortestDistance = 0
 
                     for k in range(15):
-                        sumDistance[k] = math.sqrt(((tileMergePalR[w][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[w][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[w][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2))
+                        #removed a math.sqrt here
+                        sumDistance[k] = ((tileMergePalR[w][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[w][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[w][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2)
 
                         if k != 0:
                             if sumDistance[k] < sumDistance[shortestDistance]:
@@ -881,13 +889,13 @@ while crunch < numCrunches:
             tileMergePalNumTiles[j] = tileMergePalNumTiles[j] + tileMergePalNumTiles[i]
 
             #FULLY QUANTIZE the merged palette EVERY TIME.  Get random start point from palette's tiles
-            bestAvgClrDistance = 99999
-            #bestRMSClrDistance = 99999
+            bestAvgClrDistance = 999999
+            #bestRMSClrDistance = 999999
             for k in range(trials):
                 reshuffleAttempts = 0
                 gettingWorseCounter = 0
-                avgClrDistance = 99999
-                prevAvgClrDistance = 99999
+                avgClrDistance = 999999
+                prevAvgClrDistance = 999999
                
                 n = 0
                 while n < 15:
@@ -934,10 +942,10 @@ while crunch < numCrunches:
                             tileLo = tileMergePalTileList[j][p][1]
                         
                             for n in range(tileClrsNumUniqueClrs[tileHi][tileLo]):
-                                closestPixelDistance = 99999
+                                closestPixelDistance = 999999
                                 for m in range(15):
                                     pixelDistance = ((tileUniqueClrsR[tileHi][tileLo][n] - tileMergePalR[j][m]) ** 2) + ((tileUniqueClrsG[tileHi][tileLo][n] - tileMergePalG[j][m]) ** 2) + ((tileUniqueClrsB[tileHi][tileLo][n] - tileMergePalB[j][m]) ** 2)
-                                    pixelDistance = math.sqrt(pixelDistance)
+                                    #pixelDistance = math.sqrt(pixelDistance)
                                     if pixelDistance < closestPixelDistance:
                                         closestPixelDistance = pixelDistance
                                         closestPixelColour = m
@@ -1031,10 +1039,11 @@ while crunch < numCrunches:
             
                                 #merge two closest centroids...
             
-                                mergeSumClosest = 9999
+                                mergeSumClosest = 999999
                                 for n in range(15):
                                     for m in range(n):
-                                        mergeSum = math.sqrt(((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2))
+                                        #removed a math.sqrt here
+                                        mergeSum = ((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2)
                                         if mergeSum < mergeSumClosest:
                                             mergeSumClosest = mergeSum
                                             mergeSumIndexA = m
@@ -1100,7 +1109,7 @@ while crunch < numCrunches:
             jOffset = w
             chunkCounter = chunkSize
             crunch = crunch + 1
-            bestMergeLoss = 99999
+            bestMergeLoss = 999999
 
         w = w + 1
 
@@ -1111,7 +1120,7 @@ print("Beginning Standard Palette Crunch")
 numCrunches = fullPals - targetNumPalettes
          
 for crunch in range(numCrunches):
-    bestMergeLoss = 99999
+    bestMergeLoss = 999999
 
     for i in range(fullPals):
         print("comparing palette {} / {}...  {} removed".format(i, (fullPals - 1), crunch))
@@ -1127,7 +1136,8 @@ for crunch in range(numCrunches):
                     shortestDistance = 0
 
                     for k in range(15):
-                        sumDistance[k] = math.sqrt(((tileMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2))
+                        #removed a math.sqrt here
+                        sumDistance[k] = ((tileMergePalR[j][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[j][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[j][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2)
 
                         if k != 0:
                             if sumDistance[k] < sumDistance[shortestDistance]:
@@ -1146,7 +1156,8 @@ for crunch in range(numCrunches):
                     shortestDistance = 0
 
                     for k in range(15):
-                        sumDistance[k] = math.sqrt(((tileMergePalR[i][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[i][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[i][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2))
+                        #removed a math.sqrt here
+                        sumDistance[k] = ((tileMergePalR[i][k] - tileUniqueClrsR[tileHi][tileLo][m]) ** 2) + ((tileMergePalG[i][k] - tileUniqueClrsG[tileHi][tileLo][m]) ** 2) + ((tileMergePalB[i][k] - tileUniqueClrsB[tileHi][tileLo][m]) ** 2)
 
                         if k != 0:
                             if sumDistance[k] < sumDistance[shortestDistance]:
@@ -1179,13 +1190,13 @@ for crunch in range(numCrunches):
     tileMergePalNumTiles[j] = tileMergePalNumTiles[j] + tileMergePalNumTiles[i]
 
     #FULLY QUANTIZE the merged palette EVERY TIME.  Get random start point from palette's tiles
-    bestAvgClrDistance = 99999
-    #bestRMSClrDistance = 99999
+    bestAvgClrDistance = 999999
+    #bestRMSClrDistance = 999999
     for k in range(trials):
         reshuffleAttempts = 0
         gettingWorseCounter = 0
-        avgClrDistance = 99999
-        prevAvgClrDistance = 99999
+        avgClrDistance = 999999
+        prevAvgClrDistance = 999999
            
         n = 0
         while n < 15:
@@ -1232,10 +1243,10 @@ for crunch in range(numCrunches):
                     tileLo = tileMergePalTileList[j][p][1]
                     
                     for n in range(tileClrsNumUniqueClrs[tileHi][tileLo]):
-                        closestPixelDistance = 99999
+                        closestPixelDistance = 999999
                         for m in range(15):
                             pixelDistance = ((tileUniqueClrsR[tileHi][tileLo][n] - tileMergePalR[j][m]) ** 2) + ((tileUniqueClrsG[tileHi][tileLo][n] - tileMergePalG[j][m]) ** 2) + ((tileUniqueClrsB[tileHi][tileLo][n] - tileMergePalB[j][m]) ** 2)
-                            pixelDistance = math.sqrt(pixelDistance)
+                            #pixelDistance = math.sqrt(pixelDistance)
                             if pixelDistance < closestPixelDistance:
                                 closestPixelDistance = pixelDistance
                                 closestPixelColour = m
@@ -1329,10 +1340,11 @@ for crunch in range(numCrunches):
 
                         #merge two closest centroids...
 
-                        mergeSumClosest = 9999
+                        mergeSumClosest = 999999
                         for n in range(15):
                             for m in range(n):
-                                mergeSum = math.sqrt(((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2))
+                                #removed a math.sqrt here
+                                mergeSum = ((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2)
                                 if mergeSum < mergeSumClosest:
                                     mergeSumClosest = mergeSum
                                     mergeSumIndexA = m
@@ -1412,10 +1424,11 @@ for j in range(fullPals):
     bestAvgClrDistance = tileMergePalAvg[j]
 
     for k in range(xTrials):
+        print("Palette {}, Trial {}...".format(j, k))
         reshuffleAttempts = 0
         gettingWorseCounter = 0
-        avgClrDistance = 99999
-        prevAvgClrDistance = 99999
+        avgClrDistance = 999999
+        prevAvgClrDistance = 999999
            
         n = 0
         while n < 15:
@@ -1462,10 +1475,10 @@ for j in range(fullPals):
                     tileLo = tileMergePalTileList[j][p][1]
                     
                     for n in range(tileClrsNumUniqueClrs[tileHi][tileLo]):
-                        closestPixelDistance = 99999
+                        closestPixelDistance = 999999
                         for m in range(15):
                             pixelDistance = ((tileUniqueClrsR[tileHi][tileLo][n] - tileMergePalR[j][m]) ** 2) + ((tileUniqueClrsG[tileHi][tileLo][n] - tileMergePalG[j][m]) ** 2) + ((tileUniqueClrsB[tileHi][tileLo][n] - tileMergePalB[j][m]) ** 2)
-                            pixelDistance = math.sqrt(pixelDistance)
+                            #pixelDistance = math.sqrt(pixelDistance)
                             if pixelDistance < closestPixelDistance:
                                 closestPixelDistance = pixelDistance
                                 closestPixelColour = m
@@ -1559,10 +1572,11 @@ for j in range(fullPals):
 
                         #merge two closest centroids...
 
-                        mergeSumClosest = 9999
+                        mergeSumClosest = 999999
                         for n in range(15):
                             for m in range(n):
-                                mergeSum = math.sqrt(((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2))
+                                #removed a math.sqrt here
+                                mergeSum = ((tileMergePalR[j][n] - tileMergePalR[j][m]) ** 2) + ((tileMergePalG[j][n] - tileMergePalG[j][m]) ** 2) + ((tileMergePalB[j][n] - tileMergePalB[j][m]) ** 2)
                                 if mergeSum < mergeSumClosest:
                                     mergeSumClosest = mergeSum
                                     mergeSumIndexA = m
@@ -1611,55 +1625,94 @@ for j in range(fullPals):
 #=======================================================================================================================
 #Dump final bitmap
 
-print("Exporting Bitmap Reduced To {} Palettes...".format(fullPals))
+#print("Exporting Bitmap Reduced To {} Palettes...".format(fullPals))
 
-with open(outputBMPNameC, "wb") as f:
+#with open(outputBMPNameC, "wb") as f:
 
     #Copy original header back verbatim
-    for i in range(pixelStartAddress):
-        f.write(bytelist[i])
+#    for i in range(pixelStartAddress):
+#        f.write(bytelist[i])
 
     #Then write new pixel data
-    for i in range(bitmapHeight):
-        for j in range(bitmapWidth):
-            tileCoordY = i%8
-            tileCoordX = j%8
-            mapCoordY = i//8
-            mapCoordX = j//8
+#    for i in range(bitmapHeight):
+#        for j in range(bitmapWidth):
+#            tileCoordY = i%8
+#            tileCoordX = j%8
+#            mapCoordY = i//8
+#            mapCoordX = j//8
 
             #for each pixel, lookup which palette to use (FIND mapCoordY, mapCoordX IN tileMergePalTileList), find the closest colour match in that palette, then write that colour value
             
-            foundTileMatch = False
-            for n in range(fullPals):
+#            foundTileMatch = False
+#            for n in range(fullPals):
                 #print("PALETTE {}:  {} TILES".format(n, tileMergePalNumTiles[n]))
-                for m in range(tileMergePalNumTiles[n]):
+#                for m in range(tileMergePalNumTiles[n]):
                     #print("{} == {}, {} == {}".format(tileMergePalTileList[n][m][0], mapCoordY, tileMergePalTileList[n][m][1], mapCoordX))
-                    if tileMergePalTileList[n][m][0] == mapCoordY and tileMergePalTileList[n][m][1] == mapCoordX:
-                        foundTileMatch = True
-                        correctDrawPal = n
-                        break
-                if foundTileMatch == True:
+#                    if tileMergePalTileList[n][m][0] == mapCoordY and tileMergePalTileList[n][m][1] == mapCoordX:
+#                        foundTileMatch = True
+#                        correctDrawPal = n
+#                        break
+#                if foundTileMatch == True:
+#                    break
+
+#            if foundTileMatch == False:
+#                print("WTF Tile not found {}, {}".format(mapCoordY, mapCoordX))
+#                quit()
+
+#            bestPixelDistance = 999999
+#            for n in range(15):
+#                pixelDistance = ((tileMergePalR[correctDrawPal][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+#                pixelDistance = pixelDistance + ((tileMergePalG[correctDrawPal][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+#                pixelDistance = pixelDistance + ((tileMergePalB[correctDrawPal][n] - tileClrsB[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+
+#                if pixelDistance < bestPixelDistance:
+#                    bestPixelDistance = pixelDistance
+#                    bestClrMatch = n
+
+#            tileDataOutputArray[bitmapHeight - i - 1][j] = bestClrMatch + 1        #Plus One Because Palette Colour Zero is Transparent!
+
+#            f.write(struct.pack("B", int(tileMergePalB[correctDrawPal][bestClrMatch] * 8)))
+#            f.write(struct.pack("B", int(tileMergePalG[correctDrawPal][bestClrMatch] * 8)))
+#            f.write(struct.pack("B", int(tileMergePalR[correctDrawPal][bestClrMatch] * 8)))
+
+#=======================================================================================================================
+#For when not dumping final bitmap, quickly and quietly populate tileDataOutputArray instead
+
+#Write new pixel data
+for i in range(bitmapHeight):
+    for j in range(bitmapWidth):
+        tileCoordY = i%8
+        tileCoordX = j%8
+        mapCoordY = i//8
+        mapCoordX = j//8
+
+        #for each pixel, lookup which palette to use (FIND mapCoordY, mapCoordX IN tileMergePalTileList), find the closest colour match in that palette, then write that colour value
+        
+        foundTileMatch = False
+        for n in range(fullPals):
+            for m in range(tileMergePalNumTiles[n]):
+                if tileMergePalTileList[n][m][0] == mapCoordY and tileMergePalTileList[n][m][1] == mapCoordX:
+                    foundTileMatch = True
+                    correctDrawPal = n
                     break
+            if foundTileMatch == True:
+                break
 
-            if foundTileMatch == False:
-                print("WTF Tile not found {}, {}".format(mapCoordY, mapCoordX))
-                quit()
+        if foundTileMatch == False:
+            print("WTF Tile not found {}, {}".format(mapCoordY, mapCoordX))
+            quit()
 
-            bestPixelDistance = 9999
-            for n in range(15):
-                pixelDistance = ((tileMergePalR[correctDrawPal][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
-                pixelDistance = pixelDistance + ((tileMergePalG[correctDrawPal][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
-                pixelDistance = pixelDistance + ((tileMergePalB[correctDrawPal][n] - tileClrsB[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+        bestPixelDistance = 999999
+        for n in range(15):
+            pixelDistance = ((tileMergePalR[correctDrawPal][n] - tileClrsR[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+            pixelDistance = pixelDistance + ((tileMergePalG[correctDrawPal][n] - tileClrsG[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
+            pixelDistance = pixelDistance + ((tileMergePalB[correctDrawPal][n] - tileClrsB[mapCoordY][mapCoordX][(tileCoordY*8)+tileCoordX]) ** 2)
 
-                if pixelDistance < bestPixelDistance:
-                    bestPixelDistance = pixelDistance
-                    bestClrMatch = n
+            if pixelDistance < bestPixelDistance:
+                bestPixelDistance = pixelDistance
+                bestClrMatch = n
 
-            tileDataOutputArray[bitmapHeight - i - 1][j] = bestClrMatch + 1        #Plus One Because Palette Colour Zero is Transparent!
-
-            f.write(struct.pack("B", int(tileMergePalB[correctDrawPal][bestClrMatch] * 8)))
-            f.write(struct.pack("B", int(tileMergePalG[correctDrawPal][bestClrMatch] * 8)))
-            f.write(struct.pack("B", int(tileMergePalR[correctDrawPal][bestClrMatch] * 8)))
+        tileDataOutputArray[bitmapHeight - i - 1][j] = bestClrMatch + 1        #Plus One Because Palette Colour Zero is Transparent!
 
 #=======================================================================================================================
 #Output Tile Set - Consumes ONE FULL BANK for a fullscreen image
@@ -1670,7 +1723,8 @@ print("Writing .inc files...")
 
 with open(outputIncNameA, "w") as f:
     f.write(outputIncNameALabel+'\r'+'\n')
-    for i in range(32):
+    #Note:  You can output as many rows as you want but j must ALWAYS be in range 32
+    for i in range(RowsToOutput):
         for j in range(32):
             pixelClrNum = 0
             for k in range(8):
@@ -1785,12 +1839,13 @@ with open(outputIncNameB, "w") as f:
 
         f.write(outputString+'\r'+'\n')
 
-    for i in range(32 - numTilesTall):
-        outputString = ".dw $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF"
-        f.write(outputString+'\r'+'\n')
+    #Optional Map Padding
+    #for i in range(32 - numTilesTall):
+    #    outputString = ".dw $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF"
+    #    f.write(outputString+'\r'+'\n')
         
-    f.write(""+'\r'+'\n')
-    f.write(outputIncNameAPalLabel+'\r'+'\n')
+with open(outputIncNameC, "w") as f:
+    f.write(outputIncNameCLabel+'\r'+'\n')
 
     for i in range(fullPals):
         outputString = ".dw $0000, $"
@@ -1812,6 +1867,4 @@ with open(outputIncNameB, "w") as f:
         outputString = "{}{}".format(outputString, outputPalAll)
 
         f.write(outputString+'\r'+'\n')
-
-
 print ("Done")
