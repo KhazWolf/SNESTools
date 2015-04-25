@@ -490,7 +490,7 @@ for i in range(numPalettes):
         fullPalList[fullPals] = i
         fullPals = fullPals + 1
 
-while fullPals < 8:
+while fullPals < targetNumPalettes:
     #scan through empty palettes and collect unique colours until a new full palette has been built
     print("Pre-Merging away palettes with empty slots...  {} empty, {} full".format(emptyPals, fullPals))
     collectedColours = 0
