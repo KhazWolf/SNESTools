@@ -1,15 +1,20 @@
-#Image Quantizer for SNES Graphics
+#Image Quantizer for SNES Graphics v1.1
 #Written by Khaz
 #Takes in a 24bpp Bitmap file no larger than 256x256 pixels and quantizes it into 15-colour palettes.  Width and height must be divisible by 8 pixels (1 tile)
 #Intelligently merges similar palettes to reduce to 8 or fewer total palettes, then exports SNES-friendly .inc files containing tile sets, tile map and palettes.
 
-#Potential future enhancements:  
-#   Use of Background colour for a 16th colour in each palette, for slightly increased colour depth.
+#Changes since 1.0:
+#   No longer fails when all tiles contain less than 15 colours
+#   All square roots were totally unnececssary and have been removed since 1.0 for slight improvement in speed
+#   Optional # of tile set rows to output for smaller pictures, default is to write fullscreen image
+
+#Potential future enhancements:
+#   Change optional bitmap outputs and tilemap padding into command line arguments rather than commented-out code.
+#   Use of Background colour for a 16th colour in each palette for increased colour depth.
 #   Option of 16x16 tiles
-#   Option of smaller tilesets than a fullscreen image to fit more in ROM - theoretically adapt to image dimensions...
-#   Optimizing for Speed (TRY NOT SQUARE ROOTING DISTANCES - MUST BE CONSISTENT)
-#   Option of RMS instead of straight Averages for colour comparisons
-#   If required, an option to match very-close colours between palettes, to make tile borders less visible.
+#   Optimizing for Speed 
+#   Option of RMS instead of straight Averages for colour comparisons (pointless?)
+#   Option to match very-close colours between palettes, to make tile borders less visible (????)
 
 import argparse
 import random
@@ -177,6 +182,7 @@ tileMergePalTileList = [[[0 for x in range(2)] for x in range(numPalettes)] for 
 
 emptyPalList = [0 for x in range(numPalettes)]
 fullPalList = [0 for x in range(numPalettes)]
+tempPalList = [0 for x in range(numPalettes)]
 
 sumDistance = [0 for x in range(15)]
 
@@ -269,6 +275,7 @@ for i in range(numTilesTall):
                 break
 
             #now quantize the working palette!
+            convergCounter = 0
             for qLoop in range(qLoops):
 #                print("{},{} Trial: {}  Loop: {},  avg{}  prev{}".format(i, j, k, qLoop, avgClrDistance, prevAvgClrDistance))
 
@@ -483,6 +490,101 @@ for i in range(numPalettes):
         fullPalList[fullPals] = i
         fullPals = fullPals + 1
 
+while fullPals < 8:
+    #scan through empty palettes and collect unique colours until a new full palette has been built
+    print("Pre-Merging away palettes with empty slots...  {} empty, {} full".format(emptyPals, fullPals))
+    collectedColours = 0
+    alreadyGotColour = False
+    collectionPalCount = 0
+
+    for n in range(15):
+        tileWorkingPalNumPix[n] = 0
+        tileWorkingPalNumClrs[n] = 1
+        
+    for x in range(emptyPals):
+        i = emptyPalList[x]
+        tileHi = tileEMergePalTileList[i][0][0]
+        tileLo = tileEMergePalTileList[i][0][1]
+        
+        collectionPalCount = collectionPalCount + 1
+
+        for m in range(tileClrsNumUniqueClrs[tileHi][tileLo]):
+            alreadyGotColour = False
+            for n in range(collectedColours):
+                if tileUniqueClrsR[tileHi][tileLo][m] == tileWorkingPalR[n] and tileUniqueClrsG[tileHi][tileLo][m] == tileWorkingPalG[n] and tileUniqueClrsB[tileHi][tileLo][m] == tileWorkingPalB[n]:
+                    alreadyGotColour = True
+                    tileWorkingPalNumPix[n] = tileWorkingPalNumPix[n] + tileUniqueClrsNumPix[tileHi][tileLo][m]
+                    break
+                
+            if alreadyGotColour == False:
+                tileWorkingPalR[collectedColours] = tileUniqueClrsR[tileHi][tileLo][m]
+                tileWorkingPalG[collectedColours] = tileUniqueClrsG[tileHi][tileLo][m]
+                tileWorkingPalB[collectedColours] = tileUniqueClrsB[tileHi][tileLo][m]
+                collectedColours = collectedColours + 1
+                print("Got a new Colour! {}".format(collectedColours))
+                
+                if collectedColours == 15:
+                    break
+                
+        if collectedColours == 15:
+            break
+
+    if collectedColours == 15:    
+        print("Full Palette of Colours Found!  Merging {} nonfull palettes together".format(collectionPalCount))
+        for n in range(collectionPalCount - 1):
+            j = emptyPalList[n]
+            tileEMergePalTileList[i][tileEMergePalNumTiles[i]][0] = tileEMergePalTileList[j][0][0]
+            tileEMergePalTileList[i][tileEMergePalNumTiles[i]][1] = tileEMergePalTileList[j][0][1]
+            tileEMergePalNumTiles[i] = tileEMergePalNumTiles[i] + 1
+                
+        for m in range(15):
+            tileEMergePalR[i][m] = tileWorkingPalR[m]
+            tileEMergePalG[i][m] = tileWorkingPalG[m]
+            tileEMergePalB[i][m] = tileWorkingPalB[m]
+            tileEMergePalNumPix[i][m] = tileWorkingPalNumPix[m]
+            tileEMergePalNumClrs[i][m] = 1                #Somehow I dont think this will matter
+
+        fullPalList[fullPals] = i
+        fullPals = fullPals + 1
+
+        #now recreate the emptypals list starting from the next element, if there is one
+        transferredPals = 0
+        for n in range(emptyPals - x - 1):
+            tempPalList[n] = emptyPalList[x + n + 1]
+            transferredPals = transferredPals + 1
+        if transferredPals == 0:
+            emptyPals = 0
+            break
+        else:
+            for m in range(transferredPals):
+                emptyPalList[m] = tempPalList[m]
+            emptyPals = transferredPals
+
+            
+        
+    else:
+        print("RAN OUT OF COLOURS TO MERGE!  Merging entire empty palette list ending")
+        i = emptyPalList[emptyPals - 1]
+        for n in range(emptyPals - 1):
+            j = emptyPalList[n]
+            tileEMergePalTileList[i][tileEMergePalNumTiles[i]][0] = tileEMergePalTileList[j][0][0]
+            tileEMergePalTileList[i][tileEMergePalNumTiles[i]][1] = tileEMergePalTileList[j][0][1]
+            tileEMergePalNumTiles[i] = tileEMergePalNumTiles[i] + 1
+                
+        for m in range(15):
+            tileEMergePalR[i][m] = tileWorkingPalR[m]
+            tileEMergePalG[i][m] = tileWorkingPalG[m]
+            tileEMergePalB[i][m] = tileWorkingPalB[m]
+            tileEMergePalNumPix[i][m] = tileWorkingPalNumPix[m]
+            tileEMergePalNumClrs[i][m] = 1                #Somehow I dont think this will matter
+            tileEMergePalAvg[i] = 9         #Hopefully trigger a good quantize later?
+
+        fullPalList[fullPals] = i
+        fullPals = fullPals + 1
+        emptyPals = 0
+        break
+    
+#=======================================================================================================================    
 print("Merging away palettes with empty slots...  {} empty, {} full".format(emptyPals, fullPals))
 
 #test the empty palettes' tiles for compatibility with each full palette, shove it in where it fits best
@@ -559,6 +661,7 @@ for x in range(emptyPals):
                 n = n + 1
 
         #now quantize it!
+        convergCounter = 0
         for qLoop in range(qLoops):
             #print("{} Trial: {}  Loop: {},  avg{}  prev{}".format(i, k, qLoop, avgClrDistance, prevAvgClrDistance))
 
@@ -922,6 +1025,7 @@ while crunch < numCrunches:
                         n = n + 1
 
                 #now quantize it!
+                convergCounter = 0
                 for qLoop in range(qLoops):
                     #print("{} Trial: {}  Loop: {},  avg{}  prev{}".format(i, k, qLoop, avgClrDistance, prevAvgClrDistance))
             
@@ -1223,6 +1327,7 @@ for crunch in range(numCrunches):
                 n = n + 1
 
         #now quantize it!
+        convergCounter = 0
         for qLoop in range(qLoops):
             #print("{} Trial: {}  Loop: {},  avg{}  prev{}".format(i, k, qLoop, avgClrDistance, prevAvgClrDistance))
 
@@ -1455,6 +1560,7 @@ for j in range(fullPals):
                 n = n + 1
 
         #now quantize it!
+        convergCounter = 0                
         for qLoop in range(qLoops):
             #print("{} Trial: {}  Loop: {},  avg{}  prev{}".format(i, k, qLoop, avgClrDistance, prevAvgClrDistance))
 
