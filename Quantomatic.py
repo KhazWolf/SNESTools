@@ -1,7 +1,12 @@
-#Image Quantizer for SNES Graphics v1.1
+#Image Quantizer for SNES Graphics v1.2
 #Written by Khaz
 #Takes in a 24bpp Bitmap file no larger than 256x256 pixels and quantizes it into 15-colour palettes.  Width and height must be divisible by 8 pixels (1 tile)
 #Intelligently merges similar palettes to reduce to 8 or fewer total palettes, then exports SNES-friendly .inc files containing tile sets, tile map and palettes.
+
+#Changes since 1.1:
+#   -b flag added to switch to binary file output.
+#   Binary files are arranged Tile Set, Tile Map then Palettes
+#   Tile Set and Tile Map data size scales with height of image, Palette data size is static
 
 #Changes since 1.0:
 #   No longer fails when all tiles contain less than 15 colours
@@ -29,6 +34,7 @@ parser.add_argument("-p", "--palettes", nargs=1, default=[8], type=int, help="Ta
 parser.add_argument("-c", "--chunking", nargs=1, default=[24], type=int, help="Comparison Chunking - # to compare before merging best (8-128)")
 parser.add_argument("-x", "--xtraQ", nargs=1, default=[3], type=int, help="Quantize all palettes after merging is complete for __ more trials")
 parser.add_argument("-o", "--outputRows", nargs=1, default=[32], type=int, help="Rows of tile set to output")
+parser.add_argument("-b", "--binaryOut", action='store_true', default=False, help="Write output as binary files as well")
 args = parser.parse_args()
 
 print(args.FileName)
@@ -45,12 +51,15 @@ outputIncNameBLabel = "{}Map:".format(args.FileName)
 outputIncNameC = "{}Palettes.inc".format(args.FileName)
 outputIncNameCLabel = "{}Palettes:".format(args.FileName)
 
+outputBinNameA = "{}.bin".format(args.FileName)
+
 targetNumPalettes = args.palettes[0]
 trials = args.trials[0]
 qLoops = args.loops[0]
 xTrials = args.xtraQ[0]
 chunkSize = args.chunking[0]
 RowsToOutput = args.outputRows[0]
+binOut = args.binaryOut
 if chunkSize < 8 or chunkSize > 128:
     chunkSize = 24
 
@@ -1821,156 +1830,307 @@ for i in range(bitmapHeight):
         tileDataOutputArray[bitmapHeight - i - 1][j] = bestClrMatch + 1        #Plus One Because Palette Colour Zero is Transparent!
 
 #=======================================================================================================================
-#Output Tile Set - Consumes ONE FULL BANK for a fullscreen image
-print("Writing .inc files...")
+if binOut == True:
+    #Output Tile Set - Consumes ONE FULL BANK for a fullscreen image
+    print("Writing .bin file...")
 
-#Okay so DataOutputArray is always max size - 256x256.  Everything is zero beyond actual width and height.
-#write the FULL tileset EVERY time, INCLUDING all the blanks
+    #Okay so DataOutputArray is always max size - 256x256.  Everything is zero beyond actual width and height.
+    #write the FULL tileset EVERY time, INCLUDING all the blanks
 
-with open(outputIncNameA, "w") as f:
-    f.write(outputIncNameALabel+'\r'+'\n')
-    #Note:  You can output as many rows as you want but j must ALWAYS be in range 32
-    for i in range(RowsToOutput):
-        for j in range(32):
-            pixelClrNum = 0
-            for k in range(8):
-                bitplane0[k] = ""
-                bitplane1[k] = ""
-                bitplane2[k] = ""
-                bitplane3[k] = ""
-            for y in range(8):
+    with open(outputBinNameA, "wb") as binf:
+        #Note:  You can output as many rows as you want but j must ALWAYS be in range 32
+        for i in range(RowsToOutput):
+            for j in range(32):
+                pixelClrNum = 0
                 for k in range(8):
-                    pixelClrNum = tileDataOutputArray[(i * 8) + y][(j * 8) + k]
-                    if pixelClrNum == 1 or pixelClrNum == 3 or pixelClrNum == 5 or pixelClrNum == 7 or pixelClrNum == 9 or pixelClrNum == 11 or pixelClrNum == 13 or pixelClrNum == 15:
-                        bitplane0[y] = "{}1".format(bitplane0[y])
-                    else:
-                        bitplane0[y] = "{}0".format(bitplane0[y])
-                    if pixelClrNum == 2 or pixelClrNum == 3 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 10 or pixelClrNum == 11 or pixelClrNum == 14 or pixelClrNum == 15:
-                        bitplane1[y] = "{}1".format(bitplane1[y])
-                    else:
-                        bitplane1[y] = "{}0".format(bitplane1[y])
-                    if pixelClrNum == 4 or pixelClrNum == 5 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 12 or pixelClrNum == 13 or pixelClrNum == 14 or pixelClrNum == 15:
-                        bitplane2[y] = "{}1".format(bitplane2[y])
-                    else:
-                        bitplane2[y] = "{}0".format(bitplane2[y])
-                    if pixelClrNum > 7:
-                        bitplane3[y] = "{}1".format(bitplane3[y])
-                    else:
-                        bitplane3[y] = "{}0".format(bitplane3[y])
+                    bitplane0[k] = ""
+                    bitplane1[k] = ""
+                    bitplane2[k] = ""
+                    bitplane3[k] = ""
+                for y in range(8):
+                    for k in range(8):
+                        pixelClrNum = tileDataOutputArray[(i * 8) + y][(j * 8) + k]
+                        if pixelClrNum == 1 or pixelClrNum == 3 or pixelClrNum == 5 or pixelClrNum == 7 or pixelClrNum == 9 or pixelClrNum == 11 or pixelClrNum == 13 or pixelClrNum == 15:
+                            bitplane0[y] = "{}1".format(bitplane0[y])
+                        else:
+                            bitplane0[y] = "{}0".format(bitplane0[y])
+                        if pixelClrNum == 2 or pixelClrNum == 3 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 10 or pixelClrNum == 11 or pixelClrNum == 14 or pixelClrNum == 15:
+                            bitplane1[y] = "{}1".format(bitplane1[y])
+                        else:
+                            bitplane1[y] = "{}0".format(bitplane1[y])
+                        if pixelClrNum == 4 or pixelClrNum == 5 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 12 or pixelClrNum == 13 or pixelClrNum == 14 or pixelClrNum == 15:
+                            bitplane2[y] = "{}1".format(bitplane2[y])
+                        else:
+                            bitplane2[y] = "{}0".format(bitplane2[y])
+                        if pixelClrNum > 7:
+                            bitplane3[y] = "{}1".format(bitplane3[y])
+                        else:
+                            bitplane3[y] = "{}0".format(bitplane3[y])
 
-            for y in range(8):
-                bitplane0[y] = "%02X" % int(bitplane0[y], 2)
-                bitplane1[y] = "%02X" % int(bitplane1[y], 2)
-                bitplane2[y] = "%02X" % int(bitplane2[y], 2)
-                bitplane3[y] = "%02X" % int(bitplane3[y], 2)
+                #for y in range(8):
+                #    bitplane0[y] = "%02X" % int(bitplane0[y], 2)
+                #    bitplane1[y] = "%02X" % int(bitplane1[y], 2)
+                #    bitplane2[y] = "%02X" % int(bitplane2[y], 2)
+                #    bitplane3[y] = "%02X" % int(bitplane3[y], 2)
+                
+                binf.write(struct.pack("B", int(bitplane0[0], 2)))
+                binf.write(struct.pack("B", int(bitplane1[0], 2)))
+                binf.write(struct.pack("B", int(bitplane0[1], 2)))
+                binf.write(struct.pack("B", int(bitplane1[1], 2)))
+                binf.write(struct.pack("B", int(bitplane0[2], 2)))
+                binf.write(struct.pack("B", int(bitplane1[2], 2)))
+                binf.write(struct.pack("B", int(bitplane0[3], 2)))
+                binf.write(struct.pack("B", int(bitplane1[3], 2)))
+                binf.write(struct.pack("B", int(bitplane0[4], 2)))
+                binf.write(struct.pack("B", int(bitplane1[4], 2)))
+                binf.write(struct.pack("B", int(bitplane0[5], 2)))
+                binf.write(struct.pack("B", int(bitplane1[5], 2)))
+                binf.write(struct.pack("B", int(bitplane0[6], 2)))
+                binf.write(struct.pack("B", int(bitplane1[6], 2)))
+                binf.write(struct.pack("B", int(bitplane0[7], 2)))
+                binf.write(struct.pack("B", int(bitplane1[7], 2)))
 
-            outputString = ".db $"
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[0], bitplane1[0])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[1], bitplane1[1])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[2], bitplane1[2])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[3], bitplane1[3])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[4], bitplane1[4])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[5], bitplane1[5])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[6], bitplane1[6])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane0[7], bitplane1[7])
+                binf.write(struct.pack("B", int(bitplane2[0], 2)))
+                binf.write(struct.pack("B", int(bitplane3[0], 2)))
+                binf.write(struct.pack("B", int(bitplane2[1], 2)))
+                binf.write(struct.pack("B", int(bitplane3[1], 2)))
+                binf.write(struct.pack("B", int(bitplane2[2], 2)))
+                binf.write(struct.pack("B", int(bitplane3[2], 2)))
+                binf.write(struct.pack("B", int(bitplane2[3], 2)))
+                binf.write(struct.pack("B", int(bitplane3[3], 2)))
+                binf.write(struct.pack("B", int(bitplane2[4], 2)))
+                binf.write(struct.pack("B", int(bitplane3[4], 2)))
+                binf.write(struct.pack("B", int(bitplane2[5], 2)))
+                binf.write(struct.pack("B", int(bitplane3[5], 2)))
+                binf.write(struct.pack("B", int(bitplane2[6], 2)))
+                binf.write(struct.pack("B", int(bitplane3[6], 2)))
+                binf.write(struct.pack("B", int(bitplane2[7], 2)))
+                binf.write(struct.pack("B", int(bitplane3[7], 2)))      
 
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[0], bitplane3[0])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[1], bitplane3[1])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[2], bitplane3[2])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[3], bitplane3[3])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[4], bitplane3[4])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[5], bitplane3[5])
-            outputString = "{}{}, ${}, $".format(outputString, bitplane2[6], bitplane3[6])
-            outputString = "{}{}, ${}".format(outputString, bitplane2[7], bitplane3[7])
+        #=======================================================================================================================
+        #Write Tilemap
+        for i in range(numTilesTall):
+            for j in range(numTilesWide):
+                correctPaletteFound = False
+                for k in range(fullPals):
+                    for n in range(tileMergePalNumTiles[k]):
+                        if tileMergePalTileList[k][n][0] == (numTilesTall - i - 1) and tileMergePalTileList[k][n][1] == j:
+                            paletteRow = k
+                            correctPaletteFound = True
+                            break
+                    if correctPaletteFound == True:
+                        break
+                if correctPaletteFound == False:
+                    print("WTF Tile Not Found")
+                    quit()
+            
+                if paletteRow == 0:
+                    paletteStr = "000"
+                if paletteRow == 1:
+                    paletteStr = "001"
+                if paletteRow == 2:
+                    paletteStr = "010"
+                if paletteRow == 3:
+                    paletteStr = "011"
+                if paletteRow == 4:
+                    paletteStr = "100"
+                if paletteRow == 5: 
+                    paletteStr = "101"
+                if paletteRow == 6:
+                    paletteStr = "110"
+                if paletteRow == 7:
+                    paletteStr = "111"
+                if paletteRow > 7:
+                    print("Too Many Palettes to Export to SNES Properly!")
+                
+                #charStr needs to be a TEN bit binary string.  Top two bits represent what map chunk we're in.  Map is chunked from top to bottom in 4 parts.
+                #Since it's 8x8 tiles, we'll be going with a LINEAR tileset arrangement - each full row of tiles is TWO full rows of tileset.
+
+                charStr = format(int((i * 32) + j), '010b')
+
+                binf.write(struct.pack("H", int("000{}{}".format(paletteStr, charStr), 2)))
+                
+            if numTilesWide < 32:
+                for j in range(32 - numTilesWide):
+                    binf.write(struct.pack("H", int("03FF", 16)))
+
+        #Optional Map Padding
+        #for i in range(32 - numTilesTall):
+        #    for j in range(32):
+        #        binf.write(struct.pack("H", int("03FF", 16)))
+
+        #=======================================================================================================================        
+        #Write Palettes
+        for i in range(fullPals):
+            binf.write(struct.pack("H", 0))
+            for j in range(15):
+                outputPalR = format(int(tileMergePalR[i][j]), '05b')
+                outputPalG = format(int(tileMergePalG[i][j]), '05b')
+                outputPalB = format(int(tileMergePalB[i][j]), '05b')
+
+                binf.write(struct.pack("H", int("0{}{}{}".format(outputPalB, outputPalG, outputPalR), 2)))
+                
+        for i in range(targetNumPalettes - fullPals):
+            print("Final # palettes is less than target!  Padding palette table up to target to maintain constant file size")
+            for j in range(16):
+                binf.write(struct.pack("H", 0))
+            
+    print ("Done")
+
+#=======================================================================================================================        
+else:
+    #Output Tile Set - Consumes ONE FULL BANK for a fullscreen image
+    print("Writing .inc files...")
+
+    #Okay so DataOutputArray is always max size - 256x256.  Everything is zero beyond actual width and height.
+    #write the FULL tileset EVERY time, INCLUDING all the blanks
+
+    with open(outputIncNameA, "w") as f:
+        f.write(outputIncNameALabel+'\r'+'\n')
+        #Note:  You can output as many rows as you want but j must ALWAYS be in range 32
+        for i in range(RowsToOutput):
+            for j in range(32):
+                pixelClrNum = 0
+                for k in range(8):
+                    bitplane0[k] = ""
+                    bitplane1[k] = ""
+                    bitplane2[k] = ""
+                    bitplane3[k] = ""
+                for y in range(8):
+                    for k in range(8):
+                        pixelClrNum = tileDataOutputArray[(i * 8) + y][(j * 8) + k]
+                        if pixelClrNum == 1 or pixelClrNum == 3 or pixelClrNum == 5 or pixelClrNum == 7 or pixelClrNum == 9 or pixelClrNum == 11 or pixelClrNum == 13 or pixelClrNum == 15:
+                            bitplane0[y] = "{}1".format(bitplane0[y])
+                        else:
+                            bitplane0[y] = "{}0".format(bitplane0[y])
+                        if pixelClrNum == 2 or pixelClrNum == 3 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 10 or pixelClrNum == 11 or pixelClrNum == 14 or pixelClrNum == 15:
+                            bitplane1[y] = "{}1".format(bitplane1[y])
+                        else:
+                            bitplane1[y] = "{}0".format(bitplane1[y])
+                        if pixelClrNum == 4 or pixelClrNum == 5 or pixelClrNum == 6 or pixelClrNum == 7 or pixelClrNum == 12 or pixelClrNum == 13 or pixelClrNum == 14 or pixelClrNum == 15:
+                            bitplane2[y] = "{}1".format(bitplane2[y])
+                        else:
+                            bitplane2[y] = "{}0".format(bitplane2[y])
+                        if pixelClrNum > 7:
+                            bitplane3[y] = "{}1".format(bitplane3[y])
+                        else:
+                            bitplane3[y] = "{}0".format(bitplane3[y])
+
+                for y in range(8):
+                    bitplane0[y] = "%02X" % int(bitplane0[y], 2)
+                    bitplane1[y] = "%02X" % int(bitplane1[y], 2)
+                    bitplane2[y] = "%02X" % int(bitplane2[y], 2)
+                    bitplane3[y] = "%02X" % int(bitplane3[y], 2)
+
+                outputString = ".db $"
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[0], bitplane1[0])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[1], bitplane1[1])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[2], bitplane1[2])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[3], bitplane1[3])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[4], bitplane1[4])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[5], bitplane1[5])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[6], bitplane1[6])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane0[7], bitplane1[7])
+
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[0], bitplane3[0])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[1], bitplane3[1])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[2], bitplane3[2])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[3], bitplane3[3])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[4], bitplane3[4])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[5], bitplane3[5])
+                outputString = "{}{}, ${}, $".format(outputString, bitplane2[6], bitplane3[6])
+                outputString = "{}{}, ${}".format(outputString, bitplane2[7], bitplane3[7])
+
+                f.write(outputString+'\r'+'\n')
+
+    #=======================================================================================================================
+    #Write Tilemap
+    with open(outputIncNameB, "w") as f:
+        f.write(outputIncNameBLabel+'\r'+'\n')
+
+        for i in range(numTilesTall):
+            outputString = ".dw $"
+            for j in range(numTilesWide):
+                correctPaletteFound = False
+                for k in range(fullPals):
+                    for n in range(tileMergePalNumTiles[k]):
+                        if tileMergePalTileList[k][n][0] == (numTilesTall - i - 1) and tileMergePalTileList[k][n][1] == j:
+                            paletteRow = k
+                            correctPaletteFound = True
+                            break
+                    if correctPaletteFound == True:
+                        break
+                if correctPaletteFound == False:
+                    print("WTF Tile Not Found")
+                    quit()
+            
+                if paletteRow == 0:
+                    paletteStr = "000"
+                if paletteRow == 1:
+                    paletteStr = "001"
+                if paletteRow == 2:
+                    paletteStr = "010"
+                if paletteRow == 3:
+                    paletteStr = "011"
+                if paletteRow == 4:
+                    paletteStr = "100"
+                if paletteRow == 5: 
+                    paletteStr = "101"
+                if paletteRow == 6:
+                    paletteStr = "110"
+                if paletteRow == 7:
+                    paletteStr = "111"
+                if paletteRow > 7:
+                    print("Too Many Palettes to Export to SNES Properly!")
+                
+                #charStr needs to be a TEN bit binary string.  Top two bits represent what map chunk we're in.  Map is chunked from top to bottom in 4 parts.
+                #Since it's 8x8 tiles, we'll be going with a LINEAR tileset arrangement - each full row of tiles is TWO full rows of tileset.
+
+                charStr = format(int((i * 32) + j), '010b')
+
+                tileMapStr = "%04X" % int("000{}{}".format(paletteStr, charStr), 2)
+
+                if j == 31:
+                    outputString = "{}{}".format(outputString, tileMapStr)
+                else:
+                    outputString = "{}{}, $".format(outputString, tileMapStr)
+
+            if numTilesWide < 32:
+                for j in range(32 - numTilesWide - 1):
+                    outputString = "{}03FF, $".format(outputString)
+
+                outputString = "{}03FF".format(outputString)
 
             f.write(outputString+'\r'+'\n')
 
-#=======================================================================================================================
-#Write Tilemap and Palette to one file.
-with open(outputIncNameB, "w") as f:
-    f.write(outputIncNameBLabel+'\r'+'\n')
+        #Optional Map Padding
+        #for i in range(32 - numTilesTall):
+        #    outputString = ".dw $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF"
+        #    f.write(outputString+'\r'+'\n')
 
-    for i in range(numTilesTall):
-        outputString = ".dw $"
-        for j in range(numTilesWide):
-            correctPaletteFound = False
-            for k in range(fullPals):
-                for n in range(tileMergePalNumTiles[k]):
-                    if tileMergePalTileList[k][n][0] == (numTilesTall - i - 1) and tileMergePalTileList[k][n][1] == j:
-                        paletteRow = k
-                        correctPaletteFound = True
-                        break
-                if correctPaletteFound == True:
-                    break
-            if correctPaletteFound == False:
-                print("WTF Tile Not Found")
-                quit()
-        
-            if paletteRow == 0:
-                paletteStr = "000"
-            if paletteRow == 1:
-                paletteStr = "001"
-            if paletteRow == 2:
-                paletteStr = "010"
-            if paletteRow == 3:
-                paletteStr = "011"
-            if paletteRow == 4:
-                paletteStr = "100"
-            if paletteRow == 5: 
-                paletteStr = "101"
-            if paletteRow == 6:
-                paletteStr = "110"
-            if paletteRow == 7:
-                paletteStr = "111"
-            if paletteRow > 7:
-                print("Too Many Palettes to Export to SNES Properly!")
+    #=======================================================================================================================        
+    #Write Palettes
+    with open(outputIncNameC, "w") as f:
+        f.write(outputIncNameCLabel+'\r'+'\n')
+
+        for i in range(fullPals):
+            outputString = ".dw $0000, $"
+            for j in range(14):
+                outputPalR = format(int(tileMergePalR[i][j]), '05b')
+                outputPalG = format(int(tileMergePalG[i][j]), '05b')
+                outputPalB = format(int(tileMergePalB[i][j]), '05b')
+
+                outputPalAll = "%04X" % int("0{}{}{}".format(outputPalB, outputPalG, outputPalR), 2)
             
-            #charStr needs to be a TEN bit binary string.  Top two bits represent what map chunk we're in.  Map is chunked from top to bottom in 4 parts.
-            #Since it's 8x8 tiles, we'll be going with a LINEAR tileset arrangement - each full row of tiles is TWO full rows of tileset.
+                outputString = "{}{}, $".format(outputString, outputPalAll)
 
-            charStr = format(int((i * 32) + j), '010b')
-
-            tileMapStr = "%04X" % int("000{}{}".format(paletteStr, charStr), 2)
-
-            if j == 31:
-                outputString = "{}{}".format(outputString, tileMapStr)
-            else:
-                outputString = "{}{}, $".format(outputString, tileMapStr)
-
-        if numTilesWide < 32:
-            for j in range(32 - numTilesWide - 1):
-                outputString = "{}03FF, $".format(outputString)
-
-            outputString = "{}03FF".format(outputString)
-
-        f.write(outputString+'\r'+'\n')
-
-    #Optional Map Padding
-    #for i in range(32 - numTilesTall):
-    #    outputString = ".dw $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF, $03FF"
-    #    f.write(outputString+'\r'+'\n')
-        
-with open(outputIncNameC, "w") as f:
-    f.write(outputIncNameCLabel+'\r'+'\n')
-
-    for i in range(fullPals):
-        outputString = ".dw $0000, $"
-        for j in range(14):
-            outputPalR = format(int(tileMergePalR[i][j]), '05b')
-            outputPalG = format(int(tileMergePalG[i][j]), '05b')
-            outputPalB = format(int(tileMergePalB[i][j]), '05b')
+            outputPalR = format(int(tileMergePalR[i][14]), '05b')
+            outputPalG = format(int(tileMergePalG[i][14]), '05b')
+            outputPalB = format(int(tileMergePalB[i][14]), '05b')
 
             outputPalAll = "%04X" % int("0{}{}{}".format(outputPalB, outputPalG, outputPalR), 2)
-        
-            outputString = "{}{}, $".format(outputString, outputPalAll)
 
-        outputPalR = format(int(tileMergePalR[i][14]), '05b')
-        outputPalG = format(int(tileMergePalG[i][14]), '05b')
-        outputPalB = format(int(tileMergePalB[i][14]), '05b')
+            outputString = "{}{}".format(outputString, outputPalAll)
 
-        outputPalAll = "%04X" % int("0{}{}{}".format(outputPalB, outputPalG, outputPalR), 2)
-
-        outputString = "{}{}".format(outputString, outputPalAll)
-
-        f.write(outputString+'\r'+'\n')
-print ("Done")
+            f.write(outputString+'\r'+'\n')
+    print ("Done")
